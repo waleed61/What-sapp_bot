@@ -1,14 +1,15 @@
 {
-  "name": "whatsapp-bot",
+  "name": "sofia-whatsapp-bot",
   "version": "1.0.0",
+  "description": "A free AI-powered WhatsApp assistant using Together.ai",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "whatsapp-web.js": "^1.21.1",
     "qrcode-terminal": "^0.12.0",
-    "axios": "^1.6.7"
+    "axios": "^1.6.7",
+    "whatsapp-web.js": "^1.21.1"
   }
 }
