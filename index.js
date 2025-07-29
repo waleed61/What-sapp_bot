@@ -3,12 +3,14 @@ const qrcode = require('qrcode-terminal');
 const axios = require('axios');
 const express = require('express');
 
-// Optional: to keep Replit alive using UptimeRobot
+// Keep server alive
 const app = express();
-app.get("/", (req, res) => res.send("🤖 Sofia WhatsApp bot is running."));
+app.get("/", (req, res) => res.send("🤖 Sofia (AI Assistant of Khan) is running."));
 app.listen(3000, () => console.log("🌐 Web server running on port 3000"));
 
-// WhatsApp client setup
+// 💡 Paste your API key below
+const TOGETHER_API_KEY = 'YOUR_TOGETHER_API_KEY_HERE'; // 👈 Replace this with your actual Together API key
+
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
@@ -17,9 +19,9 @@ const client = new Client({
   }
 });
 
-// Anti-spam tracking: user => last response time
 const lastReplyTime = new Map();
-const COOLDOWN_MS = 30 * 1000; // 30 seconds
+const memory = new Map();
+const COOLDOWN_MS = 30 * 1000;
 
 client.on('qr', qr => {
   qrcode.generate(qr, { small: true });
@@ -27,50 +29,60 @@ client.on('qr', qr => {
 });
 
 client.on('ready', () => {
-  console.log('✅ Sofia WhatsApp bot is ready!');
+  console.log('✅ Sofia is ready to work for Khan!');
 });
 
 client.on('message', async msg => {
-  if (msg.isGroupMsg) return; // Ignore group messages
+  if (msg.isGroupMsg) return;
+
   const userId = msg.from;
   const now = Date.now();
 
-  // Anti-spam check
   if (lastReplyTime.has(userId)) {
     const timeSince = now - lastReplyTime.get(userId);
-    if (timeSince < COOLDOWN_MS) {
-      console.log(`⏳ Cooldown: skipping reply to ${userId}`);
-      return;
-    }
+    if (timeSince < COOLDOWN_MS) return;
   }
 
-  console.log(`💬 Message from ${userId}: "${msg.body}"`);
+  if (!memory.has(userId)) memory.set(userId, []);
+  const chatMemory = memory.get(userId);
+  chatMemory.push({ role: "user", content: msg.body });
 
-  // Simulate human typing delay
-  setTimeout(async () => {
-    const reply = await getSofiaReply(msg.body);
-    if (reply) {
-      msg.reply(reply);
-      lastReplyTime.set(userId, Date.now()); // Start cooldown
-    }
-  }, 10 * 1000); // 10-second delay
+  const reply = await getSofiaReply(chatMemory);
+  if (reply) {
+    msg.reply(reply);
+    chatMemory.push({ role: "assistant", content: reply });
+    lastReplyTime.set(userId, now);
+  }
 });
 
-// Get reply from Together AI
-async function getSofiaReply(userText) {
+async function getSofiaReply(messages) {
   try {
     const response = await axios.post(
       'https://api.together.xyz/v1/chat/completions',
       {
         model: 'mistralai/Mixtral-8x7B-Instruct-v0.1',
         messages: [
-          { role: 'system', content: 'You are Sofia, a friendly and helpful assistant.' },
-          { role: 'user', content: userText }
+          {
+            role: "system",
+            content: `You are Sofia, a polite, professional human assistant of Khan. 
+You speak like a real girl — kind, respectful, but natural and confident. 
+You NEVER share private info like your location, age, full name, etc. 
+Your job is to:
+- Greet the client warmly
+- Ask what project or service they want
+- Ask their budget and deadline
+- Ask platform/technology if needed
+- Confirm all the info
+- End by saying: "Thank you! Khan will contact you shortly regarding confirmation and payment."
+
+NEVER say you're an AI or a bot. Act like a real assistant working under Khan.`
+          },
+          ...messages
         ]
       },
       {
         headers: {
-          'Authorization': 'Bearer 56bf07bdcdd097b591c117f1bf6b587fe457eca4a413e6b316f8bc1bd5ed5def',
+          'Authorization': `Bearer ${TOGETHER_API_KEY}`,
           'Content-Type': 'application/json'
         }
       }
@@ -79,7 +91,7 @@ async function getSofiaReply(userText) {
     return response.data.choices[0].message.content.trim();
   } catch (err) {
     console.error('❌ API error:', err.message);
-    return "Sorry, I couldn't respond right now. Try again later.";
+    return "I'm sorry, I couldn’t respond right now. Please try again in a few moments.";
   }
 }
 
